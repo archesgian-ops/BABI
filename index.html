@@ -67,6 +67,7 @@ body,#app,#login{height:var(--vh,100vh)}
 #incoming{left:12px;right:12px;top:max(12px,env(safe-area-inset-top))}
 #login .box{padding:40px 24px}
 }
+.badge{margin-left:auto;background:var(--p);color:#fff;border-radius:999px;min-width:22px;height:22px;padding:0 6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -112,9 +113,38 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', fitH
 window.addEventListener('resize', fitHeight);
 fitHeight();
 let me = null, contacts = [], online = new Set(), cur = null, started = false;
-let pc = null, pcSub = false, peerIds = {};
+let pc = null, pcSub = false, peerIds = {}, unread = {};
 let peer, currentCall = null, localStream = null, callPeerId = null, dataConn = null;
 
+// ===== Notifications =====
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+document.addEventListener('click', () => {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}, { once: true });
+let audioCtx = null;
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.08;
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.18);
+  } catch (e) {}
+}
+async function showNotif(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible') return;
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) reg.showNotification(title, { body, tag: 'for-us' });
+    else new Notification(title, { body, tag: 'for-us' });
+  } catch (e) {}
+}
+function notifyMsg(n) {
+  if (cur && cur.id === n.sender_id && document.visibilityState === 'visible') return;
+  beep();
+  const u = contacts.find(c => c.id === n.sender_id);
+  showNotif((u ? u.name : 'New message') + ' 💌', n.body || '📷 Sent a photo');
+}
 $('gbtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
 $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
 sb.auth.getSession().then(({ data }) => { if (data.session) start(data.session.user); });
@@ -143,13 +173,21 @@ async function start(user) {
     })
     .subscribe(s => { if (s === 'SUBSCRIBED') { pcSub = true; announcePeer(); } });
   // Instant messages
-  sb.channel('msgs').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { if (cur) loadMessages(); }).subscribe();
+  sb.channel('msgs').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, p => {
+    if (p.eventType === 'INSERT' && p.new && p.new.receiver_id === me.id) notifyMsg(p.new);
+    if (cur) loadMessages();
+    loadContacts();
+  }).subscribe();
   loadContacts(); initPeer();
 }
 
 async function loadContacts() {
   const { data } = await sb.from('profiles').select('id,name,avatar_url').neq('id', me.id).order('name');
   contacts = data || [];
+  const ur = await sb.from('messages').select('sender_id').eq('receiver_id', me.id).eq('is_read', false);
+  unread = {}; (ur.data || []).forEach(r => { unread[r.sender_id] = (unread[r.sender_id] || 0) + 1; });
+  const total = Object.values(unread).reduce((a, b) => a + b, 0);
+  document.title = (total ? '(' + total + ') ' : '') + 'For Us 💕';
   const box = $('contacts'); box.innerHTML = '';
   if (!contacts.length) { box.textContent = 'No one else has joined yet.'; box.style.cssText = 'padding:14px;color:var(--mut);font-size:13px'; return; }
   box.style.cssText = '';
@@ -162,7 +200,9 @@ async function loadContacts() {
     w.append(im, dot);
     const t = document.createElement('div'); const n = document.createElement('b'); n.textContent = u.name;
     const s = document.createElement('small'); s.textContent = online.has(u.id) ? 'Active now' : 'Offline';
-    t.append(n, s); d.append(w, t); d.onclick = () => openChat(u); box.appendChild(d);
+    t.append(n, s); d.append(w, t);
+    if (unread[u.id]) { const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = unread[u.id]; d.append(bd); }
+    d.onclick = () => openChat(u); box.appendChild(d);
   });
 }
 
@@ -237,6 +277,7 @@ function initPeer() {
     if (callPeerId && callPeerId !== inc.peer) { inc.close(); return; }
     callPeerId = inc.peer;
     $('inctext').textContent = nameOf(inc.peer) + ' is calling...'; $('incoming').style.display = 'block';
+    beep(); showNotif(nameOf(inc.peer) + ' 📞', 'is calling you...');
     inc.on('close', endCall); inc.on('error', endCall);
     $('acc').onclick = () => {
       $('incoming').style.display = 'none';
