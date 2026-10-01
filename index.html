@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>For Us 💕</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -50,7 +50,23 @@ button{font-family:inherit;cursor:pointer}
 #cam{width:38px;height:38px;border-radius:50%;border:0;background:#F0F0F3;font-size:16px}
 #incoming{display:none;position:fixed;top:20px;right:20px;background:#fff;padding:18px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.2);text-align:center;z-index:10}
 #incoming p{margin:0 0 12px;font-weight:600}
-@media(max-width:700px){#side{width:100%}#main{display:none}body.chatting #side{display:none}body.chatting #main{display:flex}#back{display:block}}
+body,#app,#login{height:var(--vh,100vh)}
+@media(max-width:700px){
+#side{width:100%}#main{display:none}body.chatting #side{display:none}body.chatting #main{display:flex}#back{display:block}
+#me{padding-top:max(14px,env(safe-area-inset-top))}
+#head{padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top))}
+#hname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+#msgs{padding:14px 12px}
+.m{max-width:85%}
+.m img{max-width:200px;max-height:280px}
+#inrow{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));gap:8px}
+#txt{font-size:16px;min-width:0}
+#callarea{flex-wrap:wrap;justify-content:center;padding:10px;gap:8px}
+#callarea video{width:46%;max-height:30vh}
+#callarea .btn{width:100%}
+#incoming{left:12px;right:12px;top:max(12px,env(safe-area-inset-top))}
+#login .box{padding:40px 24px}
+}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -86,6 +102,15 @@ const ICE_SERVERS = [
 // =================================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
+function fitHeight() {
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.documentElement.style.setProperty('--vh', h + 'px');
+  window.scrollTo(0, 0);
+  const m = document.getElementById('msgs'); if (m) m.scrollTop = m.scrollHeight;
+}
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitHeight);
+window.addEventListener('resize', fitHeight);
+fitHeight();
 let me = null, contacts = [], online = new Set(), cur = null, started = false;
 let pc = null, pcSub = false, peerIds = {};
 let peer, currentCall = null, localStream = null, callPeerId = null, dataConn = null;
@@ -189,6 +214,7 @@ async function sendMessage() {
   $('txt').value = ''; $('file').value = ''; loadMessages();
 }
 $('send').onclick = sendMessage;
+$('txt').addEventListener('focus', () => setTimeout(fitHeight, 300));
 $('txt').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 $('cam').onclick = () => { if (!cur) return alert('Select someone first.'); $('file').click(); };
 $('file').onchange = () => { if ($('file').files[0]) sendMessage(); };
