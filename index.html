@@ -189,9 +189,16 @@ $('file').onchange = () => { if ($('file').files[0]) sendMessage(); };
 const pid = uid => 'lv-' + uid;
 function nameOf(peerId) { const u = contacts.find(c => pid(c.id) === peerId); return u ? u.name : 'Someone'; }
 
-function initPeer() {
+function initPeer(attempt = 0) {
   peer = new Peer(pid(me.id), { config: { iceServers: ICE_SERVERS } });
-  peer.on('error', e => console.log('Peer error:', e.type));
+  peer.on('error', e => {
+    console.log('Peer error:', e.type);
+    if (e.type === 'unavailable-id' && attempt < 10) {
+      try { peer.destroy(); } catch (x) {}
+      setTimeout(() => initPeer(attempt + 1), 5000);
+    }
+  });
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch (x) {} });
   peer.on('connection', conn => {
     if (callPeerId && conn.peer !== callPeerId) { conn.on('open', () => { conn.send({ type: 'reject' }); setTimeout(() => conn.close(), 300); }); return; }
     setupData(conn);
