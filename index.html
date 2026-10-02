@@ -40,10 +40,10 @@ button{font-family:inherit;cursor:pointer}
 #pill button:hover{background:rgba(255,255,255,.15)}
 #empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);gap:8px}
 #msgs{flex:1;overflow-y:auto;padding:18px 20px;display:none}
-.m{margin-bottom:8px;max-width:70%;padding:9px 15px;border-radius:18px;font-size:14px;line-height:1.4;word-wrap:break-word}
+.m{margin-bottom:8px;width:fit-content;max-width:70%;padding:9px 15px;border-radius:18px;font-size:14px;line-height:1.4;word-wrap:break-word}
 .m.me{background:linear-gradient(135deg,var(--p),var(--pd));color:#fff;margin-left:auto;border-bottom-right-radius:4px}
 .m.th{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);border-bottom-left-radius:4px}
-.m img{max-width:240px;width:100%;border-radius:12px;display:block}
+.m img{max-width:240px;width:auto;max-height:320px;border-radius:12px;display:block}
 .seen{font-size:11px;color:var(--mut);text-align:right;margin:-2px 4px 8px}
 #inrow{display:none;padding:12px 18px;background:var(--card);border-top:1px solid var(--line);gap:10px;align-items:center}
 #txt{flex:1;padding:11px 16px;border-radius:20px;border:1.5px solid #FFD6E3;font:inherit;font-size:14px}
@@ -164,7 +164,7 @@ async function loadMessages() {
     if (m.attachment) { const im = document.createElement('img'); im.src = m.attachment; d.appendChild(im); }
     if (m.body) { const t = document.createElement('div'); t.textContent = m.body; if (m.attachment) t.style.marginTop = '6px'; d.appendChild(t); }
     box.appendChild(d);
-    if (i === msgs.length - 1 && mine) { const s = document.createElement('div'); s.className = 'seen'; s.textContent = m.is_read ? 'Seen 💗' : (m.delivered_at ? 'Delivered' : 'Sent'); box.appendChild(s); }
+    if (i === msgs.length - 1 && mine) { const s = document.createElement('div'); s.className = 'seen'; s.textContent = m.is_read ? 'Seen ' : (m.delivered_at ? 'Delivered' : 'Sent'); box.appendChild(s); }
   });
   box.scrollTop = box.scrollHeight;
   if (msgs.some(m => m.receiver_id === a && !m.is_read))
