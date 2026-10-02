@@ -9,6 +9,7 @@
 <style>
 :root{--p:#FF6FA5;--pd:#E5558C;--bg:#FFF0F5;--card:#fff;--mut:#9A7B88;--line:#FFE3EC}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#4A2C3A;height:100vh;overflow:hidden}
 button{font-family:inherit;cursor:pointer}
 .btn{border:0;border-radius:999px;padding:11px 20px;font-weight:600;background:linear-gradient(135deg,var(--p),var(--pd));color:#fff}
@@ -54,7 +55,7 @@ button{font-family:inherit;cursor:pointer}
 </style>
 </head>
 <body>
-<div id="login"><div class="box"><div style="font-size:42px"></div><h1>Hi!</h1><p>a lil space to chat, call, and be cute ✨</p><button class="btn" id="gbtn">Continue with Google</button></div></div>
+<div id="login"><div class="box"><div style="font-size:42px">🥰</div><h1>Hi! 🎀</h1><p>a lil space to chat, call, and be cute ✨</p><button class="btn" id="gbtn">Continue with Google</button></div></div>
 
 <div id="app" hidden>
   <div id="side">
@@ -163,7 +164,7 @@ async function loadMessages() {
     if (m.attachment) { const im = document.createElement('img'); im.src = m.attachment; d.appendChild(im); }
     if (m.body) { const t = document.createElement('div'); t.textContent = m.body; if (m.attachment) t.style.marginTop = '6px'; d.appendChild(t); }
     box.appendChild(d);
-    if (i === msgs.length - 1 && mine) { const s = document.createElement('div'); s.className = 'seen'; s.textContent = m.is_read ? 'Seen ' : (m.delivered_at ? 'Delivered' : 'Sent'); box.appendChild(s); }
+    if (i === msgs.length - 1 && mine) { const s = document.createElement('div'); s.className = 'seen'; s.textContent = m.is_read ? 'Seen 💗' : (m.delivered_at ? 'Delivered' : 'Sent'); box.appendChild(s); }
   });
   box.scrollTop = box.scrollHeight;
   if (msgs.some(m => m.receiver_id === a && !m.is_read))
