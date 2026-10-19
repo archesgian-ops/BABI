@@ -65,7 +65,7 @@ button{font-family:inherit;cursor:pointer}
 
 <div id="app" hidden>
   <div id="side">
-    <div id="me"><img class="av" id="myav"><div><b id="myname"></b><div style="font-size:12px;color:var(--mut)">💕 Active now</div></div><button id="logout">Log out</button></div>
+    <div id="me"><img class="av" id="myav"><div><b id="myname"></b><div id="pstat" style="font-size:12px;color:var(--mut)">⏳ Connecting calls...</div></div><button id="logout">Log out</button></div>
     <div id="contacts"></div>
   </div>
   <div id="main">
@@ -117,6 +117,7 @@ const $ = id => document.getElementById(id);
 let me = null, contacts = [], online = new Set(), cur = null, started = false;
 let peer, currentCall = null, localStream = null, callPeerId = null, dataConn = null;
 let peerReady = false;
+function setStat(t) { const s = $('pstat'); if (s) s.textContent = t; }
 
 $('gbtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
 $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
@@ -257,21 +258,23 @@ function initPeer(retry = 0) {
   peerReady = false;
   peer = new Peer(pid(me.id), { config: { iceServers: ICE_SERVERS } });
 
-  peer.on('open', id => { peerReady = true; console.log('Peer ready:', id); });
+  peer.on('open', id => { peerReady = true; setStat('📞 Ready to receive calls'); console.log('Peer ready:', id); });
 
   peer.on('disconnected', () => {
     peerReady = false;
+    setStat('⚠️ Reconnecting calls...');
     console.log('Peer disconnected, reconnecting...');
     try { peer.reconnect(); } catch (e) {}
   });
 
   peer.on('error', e => {
     console.log('Peer error:', e.type);
+    if (e.type !== 'peer-unavailable') setStat('❌ Calls not ready: ' + e.type);
     if (e.type === 'unavailable-id') {
       // Old session (or another tab/device) still holds this ID: wait and retry
       try { peer.destroy(); } catch (_) {}
       if (retry < 5) setTimeout(() => initPeer(retry + 1), 3000);
-      else alert('You are already open in another tab or device. Close it and refresh.');
+      else { setStat('❌ Open in another tab/device'); alert('You are already open in another tab or device. Close it and refresh.'); }
     } else if (e.type === 'peer-unavailable') {
       alert('They are offline or have the app closed.');
       endCall();
@@ -282,13 +285,16 @@ function initPeer(retry = 0) {
   });
 
   peer.on('connection', conn => {
-    if (callPeerId && conn.peer !== callPeerId) { conn.on('open', () => { conn.send({ type: 'reject' }); setTimeout(() => conn.close(), 300); }); return; }
+    if (currentCall && callPeerId && conn.peer !== callPeerId) { conn.on('open', () => { conn.send({ type: 'reject' }); setTimeout(() => conn.close(), 300); }); return; }
     setupData(conn);
   });
 
   peer.on('call', inc => {
-    if (callPeerId && callPeerId !== inc.peer) { inc.close(); return; }
+    console.log('Incoming call from', inc.peer);
+    if (currentCall && callPeerId && callPeerId !== inc.peer) { inc.close(); return; }
     callPeerId = inc.peer;
+    // Clear the popup if nobody answers (prevents stale "busy" state)
+    setTimeout(() => { if (!currentCall && callPeerId === inc.peer) endCall(); }, 45000);
     $('inctext').textContent = nameOf(inc.peer) + ' is calling...'; $('incoming').style.display = 'block';
     inc.on('close', endCall); inc.on('error', endCall);
     $('acc').onclick = () => {
@@ -306,6 +312,11 @@ function initPeer(retry = 0) {
     $('rej').onclick = () => signalAndEnd('reject');
   });
 }
+
+// Keep the signaling connection alive
+setInterval(() => {
+  if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+}, 5000);
 
 // Reconnect to the signaling server when the app returns to the foreground (phones)
 document.addEventListener('visibilitychange', () => {
