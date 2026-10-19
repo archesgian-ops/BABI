@@ -10,16 +10,16 @@
 :root{--p:#FF6FA5;--pd:#E5558C;--bg:#FFF0F5;--card:#fff;--mut:#9A7B88;--line:#FFE3EC}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#4A2C3A;height:100vh;overflow:hidden}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#4A2C3A;height:100vh;height:100dvh;overflow:hidden}
 button{font-family:inherit;cursor:pointer}
 .btn{border:0;border-radius:999px;padding:11px 20px;font-weight:600;background:linear-gradient(135deg,var(--p),var(--pd));color:#fff}
 .btn.red{background:#E5484D}
 .av{border-radius:50%;object-fit:cover;background:#FFD6E3}
-#login{height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#FFD6E3,#FFB6C1 50%,#FF8FAB)}
+#login{height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#FFD6E3,#FFB6C1 50%,#FF8FAB)}
 #login .box{background:#fff;border-radius:24px;padding:50px 40px;text-align:center;max-width:360px;width:90%}
 #login h1{margin:10px 0 6px}#login p{color:var(--mut);font-size:14px;margin:0 0 26px}
-#app{display:flex;height:100vh}
-#side{width:320px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column}
+#app{display:flex;height:100vh;height:100dvh}
+#side{width:320px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 #me{padding:16px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
 #me img{width:38px;height:38px}#me b{font-size:15px}
 #logout{margin-left:auto;background:none;border:0;color:var(--mut);font-size:12px}
@@ -30,28 +30,34 @@ button{font-family:inherit;cursor:pointer}
 .dot{position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#C8C8D0;border:2px solid #fff}
 .dot.on{background:#4ADE80}
 .ct small{display:block;color:var(--mut);font-size:12px}
-#main{flex:1;display:flex;flex-direction:column;min-width:0}
-#callarea{display:none;gap:12px;padding:14px;background:#16162A;align-items:center}
-#callarea video{width:45%;background:#000;border-radius:14px}
+#main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+
+/* Call screen: full-screen overlay, outside #main so it shows on mobile too */
+#callarea{display:none;position:fixed;inset:0;z-index:30;background:#16162A}
+#rv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+#lv{position:absolute;right:12px;top:12px;width:110px;max-height:160px;object-fit:cover;border-radius:12px;background:#222;z-index:2;border:2px solid rgba(255,255,255,.6)}
+#hang{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);z-index:2}
+#callstatus{position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+
 #head{display:none;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);align-items:center;gap:12px}
 #head img{width:36px;height:36px}#back{display:none;background:none;border:0;font-size:22px}
 #pill{margin-left:auto;display:flex;background:#3A3A3C;border-radius:999px;padding:4px}
 #pill button{width:36px;height:36px;border-radius:50%;border:0;background:none;font-size:16px}
 #pill button:hover{background:rgba(255,255,255,.15)}
 #empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);gap:8px}
-#msgs{flex:1;overflow-y:auto;padding:18px 20px;display:none}
+#msgs{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:none}
 .m{margin-bottom:8px;width:fit-content;max-width:70%;padding:9px 15px;border-radius:18px;font-size:14px;line-height:1.4;word-wrap:break-word}
 .m.me{background:linear-gradient(135deg,var(--p),var(--pd));color:#fff;margin-left:auto;border-bottom-right-radius:4px}
 .m.th{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);border-bottom-left-radius:4px}
 .m img{max-width:240px;width:auto;max-height:320px;border-radius:12px;display:block}
 .seen{font-size:11px;color:var(--mut);text-align:right;margin:-2px 4px 8px}
 #inrow{display:none;padding:12px 18px;background:var(--card);border-top:1px solid var(--line);gap:10px;align-items:center}
-#txt{flex:1;padding:11px 16px;border-radius:20px;border:1.5px solid #FFD6E3;font:inherit;font-size:14px}
+#txt{flex:1;min-width:0;padding:11px 16px;border-radius:20px;border:1.5px solid #FFD6E3;font:inherit;font-size:14px}
 #txt:focus{outline:0;border-color:var(--p)}
 #cam{width:38px;height:38px;border-radius:50%;border:0;background:#F0F0F3;font-size:16px}
-#incoming{display:none;position:fixed;top:20px;right:20px;background:#fff;padding:18px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.2);text-align:center;z-index:10}
+#incoming{display:none;position:fixed;top:20px;right:20px;background:#fff;padding:18px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.2);text-align:center;z-index:40}
 #incoming p{margin:0 0 12px;font-weight:600}
-@media(max-width:700px){#side{width:100%}#main{display:none}body.chatting #side{display:none}body.chatting #main{display:flex}#back{display:block}}
+@media(max-width:700px){#side{width:100%}#main{display:none}body.chatting #side{display:none}body.chatting #main{display:flex}#back{display:block}#incoming{left:20px;right:20px}}
 </style>
 </head>
 <body>
@@ -63,7 +69,6 @@ button{font-family:inherit;cursor:pointer}
     <div id="contacts"></div>
   </div>
   <div id="main">
-    <div id="callarea"><video id="lv" autoplay muted playsinline></video><video id="rv" autoplay playsinline></video><button class="btn red" id="hang">Hang Up</button></div>
     <div id="head"><button id="back">‹</button><img class="av" id="hav"><b id="hname"></b>
       <div id="pill"><button id="vc" title="Voice call">📞</button><button id="vd" title="Video call">🎥</button></div></div>
     <div id="empty"><div style="font-size:48px">💌</div>Select someone to start chatting</div>
@@ -72,17 +77,40 @@ button{font-family:inherit;cursor:pointer}
       <input type="text" id="txt" maxlength="2000" placeholder="Say something sweet..."><button class="btn" id="send">Send</button></div>
   </div>
 </div>
+
+<!-- Call screen is OUTSIDE #main so it is visible on mobile -->
+<div id="callarea">
+  <video id="rv" autoplay playsinline></video>
+  <video id="lv" autoplay muted playsinline></video>
+  <div id="callstatus">Connecting...</div>
+  <button class="btn red" id="hang">Hang Up</button>
+</div>
 <div id="incoming"><p id="inctext"></p><button class="btn" id="acc">Accept</button> <button class="btn red" id="rej">Reject</button></div>
 
 <script>
 // ===== CONFIG: fill these in =====
 const SUPABASE_URL = 'https://pgucskdrogkpjvefzfsx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBndWNza2Ryb2drcGp2ZWZ6ZnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NDMxNjEsImV4cCI6MjEwNjQxOTE2MX0.i0EPhjhYIjD715jU9TI3XQnjgZ68cjTwWwTkJefeMBo';
+
+// TURN is REQUIRED for video to work across different networks / mobile data.
+// Free option: sign up at https://www.metered.ca/tools/openrelay/ (free TURN),
+// then replace the 3 values below with the ones from your dashboard.
+const TURN_HOST = 'YOUR_TURN_HOST';       // e.g. 'a.relay.metered.ca'
+const TURN_USER = 'YOUR_TURN_USERNAME';
+const TURN_PASS = 'YOUR_TURN_PASSWORD';
+
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  // { urls: 'turn:YOUR_TURN_HOST:80', username: 'USER', credential: 'PASS' },
 ];
+if (TURN_HOST !== 'YOUR_TURN_HOST') {
+  ICE_SERVERS.push(
+    { urls: 'turn:' + TURN_HOST + ':80', username: TURN_USER, credential: TURN_PASS },
+    { urls: 'turn:' + TURN_HOST + ':80?transport=tcp', username: TURN_USER, credential: TURN_PASS },
+    { urls: 'turn:' + TURN_HOST + ':443', username: TURN_USER, credential: TURN_PASS },
+    { urls: 'turns:' + TURN_HOST + ':443?transport=tcp', username: TURN_USER, credential: TURN_PASS }
+  );
+}
 // =================================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
@@ -198,6 +226,32 @@ $('file').onchange = () => { if ($('file').files[0]) sendMessage(); };
 const pid = uid => 'lv-' + uid;
 function nameOf(peerId) { const u = contacts.find(c => pid(c.id) === peerId); return u ? u.name : 'Someone'; }
 
+function showRemote(call) {
+  // Attach as early as possible and force playback (mobile browsers can pause it)
+  call.on('stream', rs => {
+    const rv = $('rv');
+    rv.srcObject = rs;
+    $('callstatus').textContent = 'Connected 💕';
+    const p = rv.play(); if (p && p.catch) p.catch(() => {});
+    setTimeout(() => { $('callstatus').style.display = 'none'; }, 1500);
+  });
+  // Log connection state so failures are visible in the console
+  const pc = call.peerConnection;
+  if (pc) pc.addEventListener('iceconnectionstatechange', () => {
+    console.log('ICE state:', pc.iceConnectionState);
+    if (pc.iceConnectionState === 'failed') {
+      $('callstatus').style.display = 'block';
+      $('callstatus').textContent = 'Connection failed (TURN server needed)';
+    }
+  });
+}
+
+function openCallScreen() {
+  $('callarea').style.display = 'block';
+  $('callstatus').style.display = 'block';
+  $('callstatus').textContent = 'Connecting...';
+}
+
 function initPeer() {
   peer = new Peer(pid(me.id), { config: { iceServers: ICE_SERVERS } });
   peer.on('error', e => console.log('Peer error:', e.type));
@@ -214,9 +268,11 @@ function initPeer() {
       $('incoming').style.display = 'none';
       const video = !!(inc.metadata && inc.metadata.video);
       navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
-        localStream = stream; $('lv').srcObject = stream; $('callarea').style.display = 'flex';
-        inc.answer(stream); currentCall = inc;
-        inc.on('stream', rs => { $('rv').srcObject = rs; });
+        localStream = stream; $('lv').srcObject = stream; openCallScreen();
+        $('lv').style.display = video ? 'block' : 'none';
+        currentCall = inc;
+        showRemote(inc);          // attach BEFORE answering
+        inc.answer(stream);
       }).catch(err => { alert('Could not access camera/mic: ' + err.message); signalAndEnd('reject'); });
     };
     $('rej').onclick = () => signalAndEnd('reject');
@@ -247,12 +303,13 @@ function startCall(video) {
   if (!cur) return alert('Select someone to call first.');
   if (callPeerId) return alert('You are already in a call.');
   navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
-    localStream = stream; $('lv').srcObject = stream; $('callarea').style.display = 'flex';
+    localStream = stream; $('lv').srcObject = stream; openCallScreen();
+    $('lv').style.display = video ? 'block' : 'none';
     callPeerId = pid(cur.id);
     setupData(peer.connect(callPeerId));
     const call = peer.call(callPeerId, stream, { metadata: { video } });
     currentCall = call;
-    call.on('stream', rs => { $('rv').srcObject = rs; });
+    showRemote(call);
     call.on('close', endCall); call.on('error', endCall);
   }).catch(err => alert('Could not access camera/mic: ' + err.message));
 }
