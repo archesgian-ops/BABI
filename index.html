@@ -224,13 +224,63 @@ $('txt').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(
 $('cam').onclick = () => { if (!cur) return alert('Select someone first.'); $('file').click(); };
 $('file').onchange = () => { if ($('file').files[0]) sendMessage(); };
 
-// ===== Calls (PeerJS) =====
+// ===== Calls: ringing via Supabase (reliable), media via PeerJS =====
 const pid = uid => 'lv-' + uid;
-function nameOf(peerId) { const u = contacts.find(c => pid(c.id) === peerId); return u ? u.name : 'Someone'; }
+function nameOf(id) { const u = contacts.find(c => c.id === id); return u ? u.name : 'Someone'; }
+
+let sig = null, callTarget = null, incoming = null, ringTimer = null, incTimer = null;
+
+function sendSig(p) {
+  if (sig) sig.send({ type: 'broadcast', event: 'sig', payload: Object.assign({ from: me.id }, p) });
+}
+
+function setupSignal() {
+  if (sig) return;
+  sig = sb.channel('calls', { config: { broadcast: { self: false } } });
+  sig.on('broadcast', { event: 'sig' }, ({ payload: p }) => {
+    if (!p || p.to !== me.id) return;
+    console.log('Signal:', p.type, 'from', p.from);
+    handleSig(p);
+  }).subscribe(s => console.log('Signal channel:', s));
+}
+
+function hideIncoming() {
+  clearTimeout(incTimer); incoming = null;
+  $('incoming').style.display = 'none';
+}
+
+function handleSig(p) {
+  if (p.type === 'ring') {
+    if (callTarget || incoming) { sendSig({ type: 'busy', to: p.from }); return; }
+    incoming = { from: p.from, video: !!p.video };
+    $('inctext').textContent = nameOf(p.from) + (p.video ? ' is video calling...' : ' is calling...');
+    $('incoming').style.display = 'block';
+    clearTimeout(incTimer);
+    incTimer = setTimeout(() => { if (incoming && incoming.from === p.from) hideIncoming(); }, 45000);
+  } else if (p.type === 'accept') {
+    if (p.from !== callTarget || !localStream || currentCall) return;
+    clearTimeout(ringTimer);
+    $('callstatus').textContent = 'Connecting...';
+    const call = peer.call(pid(p.from), localStream, { metadata: { video: localStream.getVideoTracks().length > 0 } });
+    if (!call) { alert('Could not start the call connection. Check the status under your name.'); hangup(); return; }
+    currentCall = call;
+    showRemote(call);
+    call.on('close', endCall); call.on('error', endCall);
+  } else if (p.type === 'reject' || p.type === 'busy') {
+    if (p.from === callTarget) {
+      alert(nameOf(p.from) + (p.type === 'busy' ? ' is busy.' : ' declined the call.'));
+      endCall();
+    }
+  } else if (p.type === 'hangup') {
+    if (incoming && incoming.from === p.from) hideIncoming();
+    if (p.from === callTarget) endCall();
+  }
+}
 
 function showRemote(call) {
   // Attach as early as possible and force playback (mobile browsers can pause it)
   call.on('stream', rs => {
+    clearTimeout(ringTimer);
     const rv = $('rv');
     rv.srcObject = rs;
     $('callstatus').textContent = 'Connected 💕';
@@ -256,6 +306,7 @@ function openCallScreen() {
 
 function initPeer(retry = 0) {
   peerReady = false;
+  setupSignal();
   peer = new Peer(pid(me.id), { config: { iceServers: ICE_SERVERS } });
 
   peer.on('open', id => { peerReady = true; setStat('📞 Ready to receive calls'); console.log('Peer ready:', id); });
@@ -269,49 +320,81 @@ function initPeer(retry = 0) {
 
   peer.on('error', e => {
     console.log('Peer error:', e.type);
-    if (e.type !== 'peer-unavailable') setStat('❌ Calls not ready: ' + e.type);
     if (e.type === 'unavailable-id') {
-      // Old session (or another tab/device) still holds this ID: wait and retry
+      setStat('❌ Calls not ready: unavailable-id');
       try { peer.destroy(); } catch (_) {}
       if (retry < 5) setTimeout(() => initPeer(retry + 1), 3000);
       else { setStat('❌ Open in another tab/device'); alert('You are already open in another tab or device. Close it and refresh.'); }
     } else if (e.type === 'peer-unavailable') {
-      alert('They are offline or have the app closed.');
+      alert('Could not reach their device for the media connection. Ask them to refresh and try again.');
       endCall();
-    } else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') {
-      console.log('Signaling server problem, retrying...');
+    } else {
+      setStat('❌ Calls not ready: ' + e.type);
       setTimeout(() => { try { if (peer && peer.disconnected) peer.reconnect(); } catch (_) {} }, 3000);
     }
   });
 
-  peer.on('connection', conn => {
-    if (currentCall && callPeerId && conn.peer !== callPeerId) { conn.on('open', () => { conn.send({ type: 'reject' }); setTimeout(() => conn.close(), 300); }); return; }
-    setupData(conn);
-  });
-
+  // Media call arrives only after we accepted (we already have localStream)
   peer.on('call', inc => {
-    console.log('Incoming call from', inc.peer);
-    if (currentCall && callPeerId && callPeerId !== inc.peer) { inc.close(); return; }
-    callPeerId = inc.peer;
-    // Clear the popup if nobody answers (prevents stale "busy" state)
-    setTimeout(() => { if (!currentCall && callPeerId === inc.peer) endCall(); }, 45000);
-    $('inctext').textContent = nameOf(inc.peer) + ' is calling...'; $('incoming').style.display = 'block';
-    inc.on('close', endCall); inc.on('error', endCall);
-    $('acc').onclick = () => {
-      $('incoming').style.display = 'none';
-      if (!navigator.mediaDevices) { alert('Calls need HTTPS. Open the site via https://'); signalAndEnd('reject'); return; }
-      const video = !!(inc.metadata && inc.metadata.video);
-      navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
-        localStream = stream; $('lv').srcObject = stream; openCallScreen();
-        $('lv').style.display = video ? 'block' : 'none';
-        currentCall = inc;
-        showRemote(inc);          // attach BEFORE answering
-        inc.answer(stream);
-      }).catch(err => { alert('Could not access camera/mic: ' + err.message); signalAndEnd('reject'); });
-    };
-    $('rej').onclick = () => signalAndEnd('reject');
+    console.log('Media call from', inc.peer);
+    if (localStream && callTarget && inc.peer === pid(callTarget) && !currentCall) {
+      clearTimeout(ringTimer);
+      currentCall = inc;
+      showRemote(inc);
+      inc.answer(localStream);
+      inc.on('close', endCall); inc.on('error', endCall);
+    } else { inc.close(); }
   });
 }
+
+$('acc').onclick = () => {
+  if (!incoming) return;
+  const inc = incoming;
+  hideIncoming();
+  if (!navigator.mediaDevices) { alert('Calls need HTTPS. Open the site via https://'); sendSig({ type: 'reject', to: inc.from }); return; }
+  navigator.mediaDevices.getUserMedia({ video: inc.video, audio: true }).then(stream => {
+    localStream = stream; callTarget = inc.from;
+    $('lv').srcObject = stream; $('lv').style.display = inc.video ? 'block' : 'none';
+    openCallScreen();
+    ringTimer = setTimeout(() => { if (!currentCall) { alert('Could not connect the call.'); hangup(); } }, 25000);
+    sendSig({ type: 'accept', to: inc.from });
+  }).catch(err => { alert('Could not access camera/mic: ' + err.message); sendSig({ type: 'reject', to: inc.from }); });
+};
+$('rej').onclick = () => { if (incoming) sendSig({ type: 'reject', to: incoming.from }); hideIncoming(); };
+
+function endCall() {
+  clearTimeout(ringTimer);
+  const c = currentCall; currentCall = null;
+  if (c) { try { c.close(); } catch (e) {} }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  callTarget = null;
+  $('lv').srcObject = null; $('rv').srcObject = null;
+  $('callarea').style.display = 'none';
+}
+
+function hangup() {
+  if (callTarget) sendSig({ type: 'hangup', to: callTarget });
+  endCall();
+}
+
+function startCall(video) {
+  if (!cur) return alert('Select someone to call first.');
+  if (callTarget || incoming) return alert('You are already in a call.');
+  if (!navigator.mediaDevices) return alert('Calls need HTTPS. Open the site via https://');
+  if (!peerReady) return alert('Call system is still connecting. Check the status under your name, then try again.');
+  const target = cur;
+  navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
+    localStream = stream; callTarget = target.id;
+    $('lv').srcObject = stream; $('lv').style.display = video ? 'block' : 'none';
+    openCallScreen();
+    $('callstatus').textContent = 'Calling ' + target.name + '...';
+    sendSig({ type: 'ring', to: target.id, video });
+    ringTimer = setTimeout(() => { if (!currentCall) { alert(target.name + ' did not answer.'); hangup(); } }, 40000);
+  }).catch(err => alert('Could not access camera/mic: ' + err.message));
+}
+$('vc').onclick = () => startCall(false);
+$('vd').onclick = () => startCall(true);
+$('hang').onclick = hangup;
 
 // Keep the signaling connection alive
 setInterval(() => {
@@ -323,46 +406,6 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && peer && peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
 });
 
-function endCall() {
-  const dc = dataConn; dataConn = null;
-  if (currentCall) { try { currentCall.close(); } catch (e) {} currentCall = null; }
-  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  $('lv').srcObject = null; $('rv').srcObject = null;
-  $('callarea').style.display = 'none'; $('incoming').style.display = 'none';
-  callPeerId = null;
-  if (dc) { try { dc.close(); } catch (e) {} }
-}
-function setupData(conn) {
-  dataConn = conn;
-  conn.on('data', d => { if (d && (d.type === 'reject' || d.type === 'hangup')) endCall(); });
-  conn.on('close', () => { if (dataConn === conn) endCall(); });
-}
-function signalAndEnd(type) {
-  $('incoming').style.display = 'none';
-  if (dataConn && dataConn.open) dataConn.send({ type });
-  else if (callPeerId) { const c = peer.connect(callPeerId); c.on('open', () => { c.send({ type }); setTimeout(() => c.close(), 500); }); }
-  setTimeout(endCall, 300);
-}
-function startCall(video) {
-  if (!cur) return alert('Select someone to call first.');
-  if (callPeerId) return alert('You are already in a call.');
-  if (!navigator.mediaDevices) return alert('Calls need HTTPS. Open the site via https://');
-  if (!peerReady) return alert('Still connecting, try again in a few seconds.');
-  if (!online.has(cur.id)) return alert(cur.name + ' is offline.');
-  navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
-    localStream = stream; $('lv').srcObject = stream; openCallScreen();
-    $('lv').style.display = video ? 'block' : 'none';
-    callPeerId = pid(cur.id);
-    setupData(peer.connect(callPeerId));
-    const call = peer.call(callPeerId, stream, { metadata: { video } });
-    currentCall = call;
-    showRemote(call);
-    call.on('close', endCall); call.on('error', endCall);
-  }).catch(err => alert('Could not access camera/mic: ' + err.message));
-}
-$('vc').onclick = () => startCall(false);
-$('vd').onclick = () => startCall(true);
-$('hang').onclick = () => signalAndEnd('hangup');
 </script>
 </body>
 </html>
