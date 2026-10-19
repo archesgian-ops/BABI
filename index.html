@@ -88,7 +88,7 @@ button{font-family:inherit;cursor:pointer}
 <div id="incoming"><p id="inctext"></p><button class="btn" id="acc">Accept</button> <button class="btn red" id="rej">Reject</button></div>
 
 <script>
-// ===== CONFIG: fill these in =====
+// ===== CONFIG =====
 const SUPABASE_URL = 'https://pgucskdrogkpjvefzfsx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBndWNza2Ryb2drcGp2ZWZ6ZnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NDMxNjEsImV4cCI6MjEwNjQxOTE2MX0.i0EPhjhYIjD715jU9TI3XQnjgZ68cjTwWwTkJefeMBo';
 
@@ -116,6 +116,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 let me = null, contacts = [], online = new Set(), cur = null, started = false;
 let peer, currentCall = null, localStream = null, callPeerId = null, dataConn = null;
+let peerReady = false;
 
 $('gbtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
 $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
@@ -252,13 +253,39 @@ function openCallScreen() {
   $('callstatus').textContent = 'Connecting...';
 }
 
-function initPeer() {
+function initPeer(retry = 0) {
+  peerReady = false;
   peer = new Peer(pid(me.id), { config: { iceServers: ICE_SERVERS } });
-  peer.on('error', e => console.log('Peer error:', e.type));
+
+  peer.on('open', id => { peerReady = true; console.log('Peer ready:', id); });
+
+  peer.on('disconnected', () => {
+    peerReady = false;
+    console.log('Peer disconnected, reconnecting...');
+    try { peer.reconnect(); } catch (e) {}
+  });
+
+  peer.on('error', e => {
+    console.log('Peer error:', e.type);
+    if (e.type === 'unavailable-id') {
+      // Old session (or another tab/device) still holds this ID: wait and retry
+      try { peer.destroy(); } catch (_) {}
+      if (retry < 5) setTimeout(() => initPeer(retry + 1), 3000);
+      else alert('You are already open in another tab or device. Close it and refresh.');
+    } else if (e.type === 'peer-unavailable') {
+      alert('They are offline or have the app closed.');
+      endCall();
+    } else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') {
+      console.log('Signaling server problem, retrying...');
+      setTimeout(() => { try { if (peer && peer.disconnected) peer.reconnect(); } catch (_) {} }, 3000);
+    }
+  });
+
   peer.on('connection', conn => {
     if (callPeerId && conn.peer !== callPeerId) { conn.on('open', () => { conn.send({ type: 'reject' }); setTimeout(() => conn.close(), 300); }); return; }
     setupData(conn);
   });
+
   peer.on('call', inc => {
     if (callPeerId && callPeerId !== inc.peer) { inc.close(); return; }
     callPeerId = inc.peer;
@@ -266,6 +293,7 @@ function initPeer() {
     inc.on('close', endCall); inc.on('error', endCall);
     $('acc').onclick = () => {
       $('incoming').style.display = 'none';
+      if (!navigator.mediaDevices) { alert('Calls need HTTPS. Open the site via https://'); signalAndEnd('reject'); return; }
       const video = !!(inc.metadata && inc.metadata.video);
       navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
         localStream = stream; $('lv').srcObject = stream; openCallScreen();
@@ -278,6 +306,11 @@ function initPeer() {
     $('rej').onclick = () => signalAndEnd('reject');
   });
 }
+
+// Reconnect to the signaling server when the app returns to the foreground (phones)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && peer && peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
+});
 
 function endCall() {
   const dc = dataConn; dataConn = null;
@@ -302,6 +335,9 @@ function signalAndEnd(type) {
 function startCall(video) {
   if (!cur) return alert('Select someone to call first.');
   if (callPeerId) return alert('You are already in a call.');
+  if (!navigator.mediaDevices) return alert('Calls need HTTPS. Open the site via https://');
+  if (!peerReady) return alert('Still connecting, try again in a few seconds.');
+  if (!online.has(cur.id)) return alert(cur.name + ' is offline.');
   navigator.mediaDevices.getUserMedia({ video, audio: true }).then(stream => {
     localStream = stream; $('lv').srcObject = stream; openCallScreen();
     $('lv').style.display = video ? 'block' : 'none';
